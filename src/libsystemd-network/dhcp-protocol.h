@@ -137,5 +137,7 @@ enum {
         DHCP_OPTION_VENDOR_CLASS_IDENTIFIER     = 60,
         DHCP_OPTION_CLIENT_IDENTIFIER           = 61,
         DHCP_OPTION_CLASSLESS_STATIC_ROUTE      = 121,
+        DHCP_OPTION_PRIVATE_START               = 224,
+        DHCP_OPTION_PRIVATE_END                 = 254,
         DHCP_OPTION_END                         = 255,
 };
