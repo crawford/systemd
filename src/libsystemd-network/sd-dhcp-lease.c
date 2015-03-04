@@ -187,7 +187,17 @@ sd_dhcp_lease *sd_dhcp_lease_ref(sd_dhcp_lease *lease) {
 }
 
 sd_dhcp_lease *sd_dhcp_lease_unref(sd_dhcp_lease *lease) {
+        struct sd_dhcp_raw_option *option;
+
         if (lease && REFCNT_DEC(lease->n_ref) == 0) {
+                while (lease->private_options) {
+                        option = lease->private_options;
+
+                        LIST_REMOVE(options, lease->private_options, option);
+
+                        free(option->data);
+                        free(option);
+                }
                 free(lease->hostname);
                 free(lease->domainname);
                 free(lease->dns);
@@ -579,8 +589,40 @@ int dhcp_lease_parse_options(uint8_t code, uint8_t len, const uint8_t *option,
                         return r;
 
                 break;
+        default:
+        {
+                struct sd_dhcp_raw_option *opt, *nopt, *tail;
+                uint8_t *data;
+
+                LIST_FIND_TAIL(options, lease->private_options, tail);
+                LIST_FOREACH_REVERSE(options, opt, tail) {
+                    if (code > opt->tag)
+                        break;
+                    else if (code == opt->tag) {
+                        log_error("Ignoring duplicate option, tagged %d.", code);
+                        goto finish;
+                    }
+                }
+
+                nopt = new(struct sd_dhcp_raw_option, 1);
+                if (!nopt)
+                        return -ENOMEM;
+
+                data = malloc(len);
+                if (!data) {
+                        free(nopt);
+                        return -ENOMEM;
+                }
+
+                nopt->data = memcpy(data, option, len);
+                nopt->length = len;
+                nopt->tag = code;
+
+                LIST_INSERT_AFTER(options, lease->private_options, opt, nopt);
+        }
         }
 
+finish:
         return 0;
 }
 
@@ -593,6 +635,7 @@ int dhcp_lease_new(sd_dhcp_lease **ret) {
 
         lease->router = INADDR_ANY;
         lease->n_ref = REFCNT_INIT;
+        LIST_HEAD_INIT(lease->private_options);
 
         *ret = lease;
         return 0;
@@ -601,6 +644,7 @@ int dhcp_lease_new(sd_dhcp_lease **ret) {
 int sd_dhcp_lease_save(sd_dhcp_lease *lease, const char *lease_file) {
         _cleanup_free_ char *temp_path = NULL;
         _cleanup_fclose_ FILE *f = NULL;
+        struct sd_dhcp_raw_option *option;
         struct in_addr address;
         const struct in_addr *addresses;
         const uint8_t *client_id;
@@ -677,6 +721,14 @@ int sd_dhcp_lease_save(sd_dhcp_lease *lease, const char *lease_file) {
         r = sd_dhcp_lease_get_routes(lease, &routes);
         if (r >= 0)
                 serialize_dhcp_routes(f, "ROUTES", routes, r);
+
+        LIST_FOREACH(options, option, lease->private_options) {
+                char key[] = "OPTION_000";
+                snprintf(key, sizeof(key), "OPTION_%d", option->tag);
+                r = serialize_data(f, key, option->data, option->length);
+                if (r < 0)
+                        goto finish;
+        }
 
         r = sd_dhcp_lease_get_client_id(lease, &client_id, &client_id_len);
         if (r >= 0) {

@@ -27,6 +27,7 @@
 
 #include "refcnt.h"
 #include "util.h"
+#include "list.h"
 
 #include "dhcp-protocol.h"
 
@@ -36,6 +37,14 @@ struct sd_dhcp_route {
         struct in_addr dst_addr;
         struct in_addr gw_addr;
         unsigned char dst_prefixlen;
+};
+
+struct sd_dhcp_raw_option {
+        LIST_FIELDS(struct sd_dhcp_raw_option, options);
+
+        uint8_t tag;
+        uint8_t *data;
+        uint8_t length;
 };
 
 struct sd_dhcp_lease {
@@ -72,6 +81,7 @@ struct sd_dhcp_lease {
         char *root_path;
         uint8_t *client_id;
         size_t client_id_len;
+        LIST_HEAD(struct sd_dhcp_raw_option, private_options);
 };
 
 int dhcp_lease_new(sd_dhcp_lease **ret);
