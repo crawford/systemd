@@ -28,6 +28,7 @@
 #include "dhcp-lease-internal.h"
 #include "log.h"
 #include "utf8.h"
+#include "base64.h"
 #include "util.h"
 #include "conf-parser.h"
 #include "condition.h"
@@ -506,6 +507,25 @@ int deserialize_dhcp_routes(struct sd_dhcp_route **ret, size_t *ret_size, size_t
         *ret_allocated = allocated;
         *ret = routes;
         routes = NULL;
+
+        return 0;
+}
+
+int serialize_data(FILE *f, const char *key, const uint8_t *data, size_t size) {
+        _cleanup_free_ char *b64 = NULL;
+        size_t b64_len;
+
+        assert(f);
+        assert(key);
+        assert(data);
+        assert(size);
+
+        b64_len = base64_encoded_size(size);
+        b64 = malloc(b64_len);
+        if (b64 == NULL)
+                return -ENOMEM;
+
+        fprintf(f, "%s=%s\n", key, base64_encode(b64, &b64_len, data, size));
 
         return 0;
 }
