@@ -996,7 +996,8 @@ libshared_la_SOURCES = \
 	src/shared/machine-image.c \
 	src/shared/machine-image.h \
 	src/shared/machine-pool.c \
-	src/shared/machine-pool.h
+	src/shared/machine-pool.h \
+	src/shared/base64.c \
 
 if HAVE_UTMP
 libshared_la_SOURCES += \
