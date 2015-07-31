@@ -179,6 +179,20 @@ int sd_dhcp_lease_get_routes(sd_dhcp_lease *lease, struct sd_dhcp_route **routes
         return 0;
 }
 
+int sd_dhcp_lease_get_option(sd_dhcp_lease *lease, int tag, struct sd_dhcp_raw_option *option) {
+        assert_return(lease, -EINVAL);
+        assert_return(option, -EINVAL);
+
+        LIST_FOREACH(options, opt, lease->private_options) {
+                if (opt->tag == tag) {
+                    *option = *opt;
+                    return 0;
+                }
+        }
+
+        return -ENOENT;
+}
+
 sd_dhcp_lease *sd_dhcp_lease_ref(sd_dhcp_lease *lease) {
         if (lease)
                 assert_se(REFCNT_INC(lease->n_ref) >= 2);
@@ -764,7 +778,8 @@ int sd_dhcp_lease_load(sd_dhcp_lease **ret, const char *lease_file) {
         _cleanup_free_ char *address = NULL, *router = NULL, *netmask = NULL,
                             *server_address = NULL, *next_server = NULL,
                             *dns = NULL, *ntp = NULL, *mtu = NULL,
-                            *routes = NULL, *client_id_hex = NULL;
+                            *routes = NULL, *client_id_hex = NULL,
+                            *options[DHCP_OPTION_PRIVATE_END - DHCP_OPTION_PRIVATE_START + 1];
         struct in_addr addr;
         int r;
 
@@ -789,6 +804,37 @@ int sd_dhcp_lease_load(sd_dhcp_lease **ret, const char *lease_file) {
                            "ROOT_PATH", &lease->root_path,
                            "ROUTES", &routes,
                            "CLIENTID", &client_id_hex,
+                           "OPTION224", &options[0],
+                           "OPTION225", &options[1],
+                           "OPTION226", &options[2],
+                           "OPTION227", &options[3],
+                           "OPTION228", &options[4],
+                           "OPTION229", &options[5],
+                           "OPTION230", &options[6],
+                           "OPTION231", &options[7],
+                           "OPTION232", &options[8],
+                           "OPTION233", &options[9],
+                           "OPTION234", &options[10],
+                           "OPTION235", &options[11],
+                           "OPTION236", &options[12],
+                           "OPTION237", &options[13],
+                           "OPTION238", &options[14],
+                           "OPTION239", &options[15],
+                           "OPTION240", &options[16],
+                           "OPTION241", &options[17],
+                           "OPTION242", &options[18],
+                           "OPTION243", &options[19],
+                           "OPTION244", &options[20],
+                           "OPTION245", &options[21],
+                           "OPTION246", &options[22],
+                           "OPTION247", &options[23],
+                           "OPTION248", &options[24],
+                           "OPTION249", &options[25],
+                           "OPTION250", &options[26],
+                           "OPTION251", &options[27],
+                           "OPTION252", &options[28],
+                           "OPTION253", &options[29],
+                           "OPTION254", &options[30],
                            NULL);
         if (r < 0) {
                 if (r == -ENOENT)
