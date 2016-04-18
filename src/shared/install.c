@@ -1349,8 +1349,10 @@ static int install_info_symlink_link(
         assert(i->path);
 
         r = in_search_path(i->path, paths->unit_path);
-        if (r != 0)
+        if (r < 0)
                 return r;
+        if (r > 0)
+                return 0;
 
         path = strjoin(config_path, "/", i->name, NULL);
         if (!path)
@@ -1388,7 +1390,8 @@ static int install_info_apply(
                 r = q;
 
         q = install_info_symlink_link(i, paths, config_path, root_dir, force, changes, n_changes);
-        if (r == 0)
+        /* Do not count links to the unit file towards the "carries_install_info" count */
+        if (r == 0 && q < 0)
                 r = q;
 
         return r;
