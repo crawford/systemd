@@ -2177,7 +2177,7 @@ int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char
         if (!unit_name_is_valid(name, UNIT_NAME_ANY))
                 return -EINVAL;
 
-        r = get_preset_config_paths(scope, root_dir, &files)
+        r = get_preset_config_paths(scope, root_dir, &files);
         if (r < 0)
                 return r;
 
@@ -2372,6 +2372,7 @@ int unit_file_preset_all(
         _cleanup_(install_context_done) InstallContext plus = {}, minus = {};
         _cleanup_lookup_paths_free_ LookupPaths paths = {};
         _cleanup_free_ char *config_path = NULL;
+        _cleanup_strv_free_ char **presets = NULL;
         char **i;
         int r;
 
@@ -2422,6 +2423,16 @@ int unit_file_preset_all(
                         if (r < 0)
                                 return r;
                 }
+        }
+
+        r = preset_units_list(scope, root_dir, &presets);
+        if (r < 0)
+                return r;
+
+        STRV_FOREACH(i, presets) {
+                r = preset_prepare_one(scope, &plus, &minus, &paths, root_dir, mode, *i);
+                if (r < 0)
+                        return r;
         }
 
         return execute_preset(scope, &plus, &minus, &paths, config_path, root_dir, NULL, mode, force, changes, n_changes);
