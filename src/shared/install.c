@@ -212,6 +212,35 @@ static int verify_root_dir(UnitFileScope scope, const char **root_dir) {
         return 0;
 }
 
+static int get_preset_config_paths(UnitFileScope scope, const char *root_dir, char ***files) {
+        int r;
+
+        assert(scope >= 0);
+        assert(scope < _UNIT_FILE_SCOPE_MAX);
+
+        r = verify_root_dir(scope, &root_dir);
+        if (r < 0)
+                return r;
+
+        if (scope == UNIT_FILE_SYSTEM)
+                r = conf_files_list(files, ".preset", root_dir,
+                                    "/etc/systemd/system-preset",
+                                    "/usr/local/lib/systemd/system-preset",
+                                    "/usr/lib/systemd/system-preset",
+#ifdef HAVE_SPLIT_USR
+                                    "/lib/systemd/system-preset",
+#endif
+                                    NULL);
+        else if (scope == UNIT_FILE_GLOBAL)
+                r = conf_files_list(files, ".preset", root_dir,
+                                    "/etc/systemd/user-preset",
+                                    "/usr/local/lib/systemd/user-preset",
+                                    "/usr/lib/systemd/user-preset",
+                                    NULL);
+
+        return r;
+}
+
 int unit_file_changes_add(
                 UnitFileChange **changes,
                 unsigned *n_changes,
@@ -2088,26 +2117,12 @@ int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char
         if (!unit_name_is_valid(name, UNIT_NAME_ANY))
                 return -EINVAL;
 
-        if (scope == UNIT_FILE_SYSTEM)
-                r = conf_files_list(&files, ".preset", root_dir,
-                                    "/etc/systemd/system-preset",
-                                    "/usr/local/lib/systemd/system-preset",
-                                    "/usr/lib/systemd/system-preset",
-#ifdef HAVE_SPLIT_USR
-                                    "/lib/systemd/system-preset",
-#endif
-                                    NULL);
-        else if (scope == UNIT_FILE_GLOBAL)
-                r = conf_files_list(&files, ".preset", root_dir,
-                                    "/etc/systemd/user-preset",
-                                    "/usr/local/lib/systemd/user-preset",
-                                    "/usr/lib/systemd/user-preset",
-                                    NULL);
-        else
-                return 1; /* Default is "enable" */
-
+        r = get_preset_config_paths(scope, root_dir, &files)
         if (r < 0)
                 return r;
+
+        if (!files)
+                return 1; /* Default is "enable" */
 
         STRV_FOREACH(p, files) {
                 _cleanup_fclose_ FILE *f;
