@@ -2101,6 +2101,66 @@ int unit_file_get_state(
         return unit_file_lookup_state(scope, root_dir, &paths, name, ret);
 }
 
+static int preset_units_list(UnitFileScope scope, const char *root_dir, char ***names) {
+        _cleanup_hashmap_free_ Hashmap *h = NULL;
+        _cleanup_strv_free_ char **files = NULL;
+        char **p;
+        int r;
+
+        r = get_preset_config_paths(scope, root_dir, &files);
+        if (r < 0)
+                return r;
+
+        h = hashmap_new(&string_hash_ops);
+        if (!h)
+                return -ENOMEM;
+
+        STRV_FOREACH(p, files) {
+                _cleanup_fclose_ FILE *f;
+                char line[LINE_MAX];
+
+                f = fopen(*p, "re");
+                if (!f) {
+                        if (errno == ENOENT)
+                                continue;
+
+                        return -errno;
+                }
+
+                FOREACH_LINE(line, f, return -errno) {
+                        char *parameter;
+                        char *l;
+
+                        l = strstrip(line);
+
+                        if (isempty(l))
+                                continue;
+                        if (strchr(COMMENTS, *l))
+                                continue;
+
+                        parameter = first_word(l, "enable") ?: first_word(l, "disable");
+                        if (parameter) {
+                                r = hashmap_put(h, parameter, parameter);
+                                if (r == -EEXIST || r == 0) {
+                                        log_debug("Skipping existing service: %s.", parameter);
+                                        free(p);
+                                } else if (r < 0) {
+                                        free(p);
+                                        return r;
+                                }
+                        } else {
+                                log_warning("Couldn't parse line '%s'", l);
+                        }
+                }
+        }
+
+        *names = hashmap_get_strv(h);
+        if (!*names)
+                return -ENOMEM;
+
+        return 0;
+}
+
 int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char *name) {
         _cleanup_strv_free_ char **files = NULL;
         char **p;
